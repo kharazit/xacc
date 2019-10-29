@@ -16,6 +16,7 @@
 
 #include "Properties.hpp"
 #include "QObjectExperimentVisitor.hpp"
+#include "OpenPulseVisitor.hpp"
 
 #define RAPIDJSON_HAS_STDSTRING 1
 
@@ -27,6 +28,9 @@ using namespace rapidjson;
 #include "xacc.hpp"
 
 #include "QObject.hpp"
+
+#include "pulse_instruction.hpp"
+#include "pulse_composite.hpp"
 
 #include <regex>
 #include <thread>
@@ -132,6 +136,7 @@ void IBMAccelerator::initialize(const HeterogeneousMap &params) {
 
     auto j = json::parse("{\"backends\":" + response + "}");
     from_json(j, backends_root);
+    getBackendPropsResponse = "{\"backends\":" + response + "}";
 
     auto backendArray = d.GetArray();
     for (auto &b : backends_root.get_backends()) {
@@ -170,6 +175,101 @@ void IBMAccelerator::initialize(const HeterogeneousMap &params) {
   }
 }
 
+void IBMAccelerator::contributeInstructions() {
+  auto j = json::parse(getBackendPropsResponse);
+  auto backends = j["backends"];
+  for (auto it = backends.begin(); it != backends.end(); ++it) {
+    auto t = (*it)["name"].get<std::string>();
+    if ((*it)["name"].get<std::string>() == backend) {
+      //   std::cout << "Contributing analog instructions from " << backend <<
+      //   "\n";
+
+      auto pulse_library =
+          (*it)["specificConfiguration"]["defaults"]["pulse_library"];
+      auto cmd_defs = (*it)["specificConfiguration"]["defaults"]["cmd_def"];
+
+      int counter = 0;
+      for (auto pulse_iter = pulse_library.begin();
+           pulse_iter != pulse_library.end(); ++pulse_iter) {
+        auto pulse_name = (*pulse_iter)["name"].get<std::string>();
+        // std::cout << counter << ", Pulse: " << pulse_name << "\n";
+        auto samples =
+            (*pulse_iter)["samples"].get<std::vector<std::vector<double>>>();
+        std::vector<std::complex<double>> samplesCplx;
+        for (auto &s : samples)
+          samplesCplx.emplace_back(s[0], s[1]);
+
+        InstructionParameter tmpS(samplesCplx);
+        auto pulse = std::make_shared<PulseInstruction>(pulse_name);
+        pulse->setParameter(3, tmpS);
+
+        xacc::contributeService(pulse_name, pulse);
+        counter++;
+      }
+
+      // also add frame chagne
+      auto fc = std::make_shared<PulseInstruction>("fc");
+      xacc::contributeService("fc", fc);
+      auto aq = std::make_shared<PulseInstruction>("acquire");
+      xacc::contributeService("acquire", aq);
+
+      for (auto cmd_def_iter = cmd_defs.begin(); cmd_def_iter != cmd_defs.end();
+           ++cmd_def_iter) {
+        auto cmd_def_name = (*cmd_def_iter)["name"].get<std::string>();
+        auto qbits = (*cmd_def_iter)["qubits"].get<std::vector<std::size_t>>();
+
+        std::string tmpName =
+            "pulse::" + cmd_def_name + "_" + std::to_string(qbits[0]);
+        if (qbits.size() == 2) {
+          tmpName += "_" + std::to_string(qbits[1]);
+        }
+        auto cmd_def = std::make_shared<PulseComposite>(tmpName);
+
+        std::cout << "CMD_DEF: " << tmpName << "\n";
+        auto sequence = (*cmd_def_iter)["sequence"];
+        for (auto seq_iter = sequence.begin(); seq_iter != sequence.end();
+             ++seq_iter) {
+          auto inst_name = (*seq_iter)["name"].get<std::string>();
+          auto inst = xacc::getContributedService<Instruction>(inst_name);
+
+          if (inst_name != "acquire") {
+            auto channel = (*seq_iter)["ch"].get<std::string>();
+            auto t0 = (*seq_iter)["t0"].get<int>();
+            inst->setBits(qbits);
+            inst->setParameter(0, channel);
+            inst->setParameter(1, t0);
+
+            if ((*seq_iter).find("phase") != (*seq_iter).end()) {
+              // we have phase too
+              auto p = (*seq_iter)["phase"];
+              if (p.is_string()) {
+                // this is a variable we have to keep track of
+                auto ptmp = p.get<std::string>();
+                ptmp.erase(std::remove_if(ptmp.begin(), ptmp.end(),
+                                          [](char ch) {
+                                            return ch == '(' || ch == ')' ||
+                                                   ch == '-';
+                                          }),
+                           ptmp.end());
+                InstructionParameter phase(ptmp);
+                inst->setParameter(2, phase);
+                cmd_def->addVariable(ptmp);
+              } else {
+                InstructionParameter phase(p.get<double>());
+                inst->setParameter(2, phase);
+              }
+            }
+          }
+          cmd_def->addInstruction(inst);
+        }
+        cmd_def->setBits(qbits);
+
+        xacc::contributeService(tmpName, cmd_def);
+      }
+    }
+  }
+}
+
 const std::string IBMAccelerator::processInput(
     std::shared_ptr<AcceleratorBuffer> buffer,
     std::vector<std::shared_ptr<CompositeInstruction>> functions) {
@@ -180,100 +280,161 @@ const std::string IBMAccelerator::processInput(
 
   auto connectivity = getConnectivity();
 
-  // Create a QObj
-  xacc::ibm::QObject qobj;
-  qobj.set_qobj_id("xacc-qobj-id");
-  qobj.set_schema_version("1.1.0");
-  qobj.set_type("QASM");
-  qobj.set_header(QObjectHeader());
+  if (!functions[0]->isAnalog()) {
+    // Create a QObj
+    xacc::ibm::QObject qobj;
+    qobj.set_qobj_id("xacc-qobj-id");
+    qobj.set_schema_version("1.1.0");
+    qobj.set_type("QASM");
+    qobj.set_header(QObjectHeader());
 
-  // Create the Experiments
-  std::vector<xacc::ibm::Experiment> experiments;
-  int maxMemSlots = 0;
-  for (auto &kernel : functions) {
+    // Create the Experiments
+    std::vector<xacc::ibm::Experiment> experiments;
+    int maxMemSlots = 0;
+    for (auto &kernel : functions) {
 
-    auto visitor = std::make_shared<QObjectExperimentVisitor>(
-        kernel->name(),
-        chosenBackend.get_specific_configuration().get_n_qubits());
+      auto visitor = std::make_shared<QObjectExperimentVisitor>(
+          kernel->name(),
+          chosenBackend.get_specific_configuration().get_n_qubits());
 
-    InstructionIterator it(kernel);
-    int memSlots = 0;
-    while (it.hasNext()) {
-      auto nextInst = it.next();
-      if (nextInst->isEnabled()) {
-        nextInst->accept(visitor);
+      InstructionIterator it(kernel);
+      int memSlots = 0;
+      while (it.hasNext()) {
+        auto nextInst = it.next();
+        if (nextInst->isEnabled()) {
+          nextInst->accept(visitor);
+        }
       }
-    }
 
-    // After calling getExperiment, maxMemorySlots should be
-    // maxClassicalBit + 1
-    auto experiment = visitor->getExperiment();
-    experiments.push_back(experiment);
-    if (visitor->maxMemorySlots > maxMemSlots) {
-      maxMemSlots = visitor->maxMemorySlots;
-    }
+      // After calling getExperiment, maxMemorySlots should be
+      // maxClassicalBit + 1
+      auto experiment = visitor->getExperiment();
+      experiments.push_back(experiment);
+      if (visitor->maxMemorySlots > maxMemSlots) {
+        maxMemSlots = visitor->maxMemorySlots;
+      }
 
-    // Ensure that this Experiment maps onto the
-    // hardware connectivity. Before now, we assume
-    // any IRTransformations have been run.
-    for (auto &inst : experiment.get_instructions()) {
-      if (inst.get_name() == "cx") {
-        std::pair<int, int> connection{inst.get_qubits()[0],
-                                       inst.get_qubits()[1]};
-        auto it =
-            std::find_if(connectivity.begin(), connectivity.end(),
-                         [&connection](const std::pair<int, int> &element) {
-                           return element == connection;
-                         });
-        if (it == std::end(connectivity)) {
-          std::stringstream ss;
-          ss << "Invalid logical program connectivity, no connection between "
-             << inst.get_qubits();
-          xacc::error(ss.str());
+      // Ensure that this Experiment maps onto the
+      // hardware connectivity. Before now, we assume
+      // any IRTransformations have been run.
+      for (auto &inst : experiment.get_instructions()) {
+        if (inst.get_name() == "cx") {
+          std::pair<int, int> connection{inst.get_qubits()[0],
+                                         inst.get_qubits()[1]};
+          auto it =
+              std::find_if(connectivity.begin(), connectivity.end(),
+                           [&connection](const std::pair<int, int> &element) {
+                             return element == connection;
+                           });
+          if (it == std::end(connectivity)) {
+            std::stringstream ss;
+            ss << "Invalid logical program connectivity, no connection between "
+               << inst.get_qubits();
+            xacc::error(ss.str());
+          }
         }
       }
     }
-  }
 
-  // Create the QObj Config
-  xacc::ibm::QObjectConfig config;
-  config.set_shots(shots);
-  config.set_memory(false);
-  config.set_meas_level(2);
-  config.set_memory_slots(maxMemSlots);
-  config.set_meas_return("avg");
-  config.set_memory_slot_size(100);
-  config.set_n_qubits(
-      chosenBackend.get_specific_configuration().get_n_qubits());
+    // Create the QObj Config
+    xacc::ibm::QObjectConfig config;
+    config.set_shots(shots);
+    config.set_memory(false);
+    config.set_meas_level(2);
+    config.set_memory_slots(maxMemSlots);
+    config.set_meas_return("avg");
+    config.set_memory_slot_size(100);
+    config.set_n_qubits(
+        chosenBackend.get_specific_configuration().get_n_qubits());
 
-  // Add the experiments and config
-  qobj.set_experiments(experiments);
-  qobj.set_config(config);
+    // Add the experiments and config
+    qobj.set_experiments(experiments);
+    qobj.set_config(config);
 
-  // Set the Backend
-  xacc::ibm::Backend bkend;
-  bkend.set_name(backendName);
+    // Set the Backend
+    xacc::ibm::Backend bkend;
+    bkend.set_name(backendName);
 
-  xacc::ibm::QObjectHeader qobjHeader;
-  qobjHeader.set_backend_version("1.0.0");
-  qobjHeader.set_backend_name(backend);
-  qobj.set_header(qobjHeader);
+    xacc::ibm::QObjectHeader qobjHeader;
+    qobjHeader.set_backend_version("1.0.0");
+    qobjHeader.set_backend_name(backend);
+    qobj.set_header(qobjHeader);
 
-  // Create the Root node of the QObject
-  xacc::ibm::QObjectRoot root;
-  root.set_backend(bkend);
-  root.set_q_object(qobj);
-  root.set_shots(shots);
+    // Create the Root node of the QObject
+    xacc::ibm::QObjectRoot root;
+    root.set_backend(bkend);
+    root.set_q_object(qobj);
+    root.set_shots(shots);
 
-  // Create the JSON String to send
-  nlohmann::json j;
-  nlohmann::to_json(j, root);
-  auto jsonStr = j.dump();
+    // Create the JSON String to send
+    nlohmann::json j;
+    nlohmann::to_json(j, root);
+    auto jsonStr = j.dump();
 
     // xacc::info("Qobj:\n" + jsonStr);
     // exit(0);
 
-  return jsonStr;
+    return jsonStr;
+  } else {
+
+    // This was an openpulse program
+    std::vector<json> experiments;
+    std::vector<json> pulseLibrary;
+    int maxMemSlots = 0;
+    for (auto &kernel : functions) {
+
+      auto visitor = std::make_shared<OpenPulseVisitor>();
+
+      InstructionIterator it(kernel);
+      int memSlots = 0;
+      while (it.hasNext()) {
+        auto nextInst = it.next();
+        if (nextInst->isEnabled()) {
+          nextInst->accept(visitor);
+        }
+      }
+
+      json instructions, experiment;
+      auto plElements = visitor->pulseLibraryJson;
+      for (auto& p : plElements) pulseLibrary.push_back(p);
+
+      instructions = visitor->instructionsJson;
+      experiment["instructions"] = instructions;
+      experiment["header"] = {};
+
+      experiments.push_back(experiment);
+    }
+
+    json config, qobj;
+    config["pulse_library"] = pulseLibrary;
+    config["shots"] = shots;
+    config["meas_level"] = 2;
+    config["rep_time"] = 1000;
+    config["memory_slot_size"] = 100;
+    config["meas_return"] = "avg";
+    config["meas_slots"] = 1;
+    config["qubit_lo_freq"] = std::vector<double>{};
+    config["meas_lo_freq"] = std::vector<double>{};
+    config["memory"] = false;
+    qobj["config"] = config;
+    qobj["schema_version"] = "1.1.0";
+        qobj["qobj_id"] = "xacc-id";
+    qobj["type"] = "PULSE";
+    qobj["experiments"] = experiments;
+    json header;
+    header["backend_name"] = backend;
+    header["backend_version"] = "1.2.1";
+    qobj["header"] = header;
+
+    json root, bcknd;
+    root["qObject"] = qobj;
+    bcknd["name"] = backend;
+    root["backend"] = bcknd;
+    root["shots"] = shots;
+
+    std::cout << root.dump(4) << "\n";
+    exit(0);
+  }
 }
 
 /**
@@ -354,7 +515,7 @@ void IBMAccelerator::processResponse(std::shared_ptr<AcceleratorBuffer> buffer,
 
   std::cout << std::endl;
 
-//   std::cout << "JOBRESPONSE:\n" << getResponse << "\n";
+  //   std::cout << "JOBRESPONSE:\n" << getResponse << "\n";
   jobIsRunning = false;
   currentJobId = "";
 
@@ -408,7 +569,8 @@ void IBMAccelerator::processResponse(std::shared_ptr<AcceleratorBuffer> buffer,
         buffer->appendMeasurement(bitStr, nOccurrences);
       } else {
         tmpBuffer->appendMeasurement(bitStr, nOccurrences);
-        buffer->appendChild(currentExperiment.get_header().get_name(), tmpBuffer);
+        buffer->appendChild(currentExperiment.get_header().get_name(),
+                            tmpBuffer);
       }
     }
   }

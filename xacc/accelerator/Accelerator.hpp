@@ -55,7 +55,7 @@ public:
   virtual HeterogeneousMap getProperties() {
       return HeterogeneousMap();
   }
-  
+
   // Return this Accelerator signature, example might be
   // ibm:ibmq_20_tokyo (should always be ACCELERATOR:BACKEND)
   // For decorators this should be
@@ -64,6 +64,10 @@ public:
 
   virtual std::vector<std::shared_ptr<IRTransformation>>
   getIRTransformations() = 0;
+
+  virtual void contributeInstructions() {
+      return;
+  }
 
   virtual const std::vector<double> getOneBitErrorRates() {
     return std::vector<double>{};

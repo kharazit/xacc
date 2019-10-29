@@ -63,6 +63,8 @@ public:
     return "ibm" + chosenBackend.get_name();
   }
 
+  void contributeInstructions() override;
+
   std::vector<std::pair<int, int>> getConnectivity() override;
 
   std::vector<std::shared_ptr<IRTransformation>>
@@ -115,6 +117,8 @@ private:
   bool initialized = false;
   xacc::ibm_backend::Backends backends_root;
   std::map<std::string, xacc::ibm_properties::Properties> backendProperties;
+
+  std::string getBackendPropsResponse = "";
 };
 
 } // namespace quantum

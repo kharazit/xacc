@@ -13,13 +13,14 @@
 #ifndef XACC_IR_INSTRUCTION_HPP_
 #define XACC_IR_INSTRUCTION_HPP_
 #include <memory>
+#include <complex>
 
 #include "Cloneable.hpp"
 #include "InstructionVisitor.hpp"
 #include "heterogeneous.hpp"
 
 namespace xacc {
-using InstructionParameter = Variant<int,double,std::string>;
+using InstructionParameter = Variant<int,double,std::string,std::vector<std::complex<double>>>;
 
 // The Instruction interface exposes an API for describing a general
 // post-Moore's law low-level assembly instruction. Each Instruction

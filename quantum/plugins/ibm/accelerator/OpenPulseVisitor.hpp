@@ -15,131 +15,68 @@
 
 #include <memory>
 #include "AllGateVisitor.hpp"
+#include "pulse_instruction.hpp"
+#include "pulse_composite.hpp"
+#include "json.hpp"
+
+using nlohmann::json;
 
 namespace xacc {
 namespace quantum {
 
-/**
- */
-class OpenPulseVisitor: public AllGateVisitor {
+class OpenPulseVisitor: public BaseInstructionVisitor,
+                       public InstructionVisitor<xacc::quantum::PulseInstruction>,
+                       public InstructionVisitor<xacc::quantum::PulseComposite> {
 protected:
 
 	constexpr static double pi = 3.1415926;
     std::string instructions = "";
-public:
 
-	virtual const std::string name() const {
+    int runningTime = 0;
+    int currentTime = 0;
+
+public:
+    std::vector<json> instructionsJson;
+    std::vector<json> pulseLibraryJson;
+
+	const std::string name() const override {
 		return "openpulse-visitor";
 	}
 
-	virtual const std::string description() const {
+	const std::string description() const override{
 		return "Map XACC IR to OpenPulse.";
 	}
-
-	OpenPulseVisitor() : OpenPulseVisitor("dummy") {}
-
-	OpenPulseVisitor(const std::string name) {
-        native = "{ \"name\": \"" + name + "\", \"instructions\": [";
-    }
 
 	const std::string toString() override {
 		return native;
 	}
 
-	/**
-	 * Visit hadamard gates
-	 */
-	void visit(Hadamard& h) override {
-        xacc::error("digital 2 analog not supported for hadamard yet.");
+
+	void visit(PulseInstruction& i) override {
+        std::vector<std::complex<double>> samples = i.getParameter(3).as<std::vector<std::complex<double>>>();
+        std::vector<std::vector<double>> tmp;
+        for (auto& s : samples) tmp.push_back({s.real(), s.imag()});
+        json j, ij;
+        j["name"] = i.name();
+        if (i.name() == "fc") {
+            j["phase"] = i.getParameter(2).as<double>();
+        }
+        // j["samples"] = tmp;
+        pulseLibraryJson.push_back(j);
+
+        ij["name"] = i.name();
+        ij["ch"] = i.getParameter(0).toString();
+        ij["phase"] = i.getParameter(2).as<double>();
+        ij["t0"] = runningTime + i.getParameter(1).as<int>();
+        instructionsJson.push_back(ij);
+
+        currentTime = runningTime + i.getParameter(1).as<int>();
 	}
 
-	void visit(Identity& i) override {
-	}
-
-	void visit(CZ& cz) override {
-		xacc::error("cz not supported");
-	}
-
-	/**
-	 * Visit CNOT gates
-	 */
-	void visit(CNOT& cn) override {
-        xacc::error("digital 2 analog not supported for CNOT yet.");
-	}
-
-	/**
-	 * Visit X gates
-	 */
-	void visit(X& x) override {
-        xacc::error("digital 2 analog not supported for x yet.");
-	}
-
-	/**
-	 *
-	 */
-	void visit(Y& y) override {
-        xacc::error("digital 2 analog not supported for y yet.");
-	}
-
-	/**
-	 * Visit Z gates
-	 */
-	void visit(Z& z) override {
-        xacc::error("digital 2 analog not supported for z yet.");
-	}
-
-    void visit(U &u) override {
-        xacc::error("digital 2 analog not supported for u yet.");
+    void visit(PulseComposite& c) override {
+        runningTime += currentTime;
     }
-	/**
 
-	 * Visit Measurement gates
-	 */
-	void visit(Measure& m) override {
-        xacc::error("digital 2 analog not supported for measure yet.");
-	}
-
-	/**
-	 * Visit Conditional functions
-	 */
-	void visit(ConditionalFunction& c) override {
-	}
-
-	void visit(Rx& rx) override {
-        xacc::error("digital 2 analog not supported for rx yet.");
-	}
-
-	void visit(Ry& ry) override {
-        xacc::error("digital 2 analog not supported for ry yet.");
-	}
-
-	void visit(Rz& rz) override {
-        xacc::error("digital 2 analog not supported for rz yet.");
-	}
-
-	void visit(CPhase& cp) override {
-        xacc::error("digital 2 analog not supported for cphase yet.");
-	}
-
-	void visit(Swap& s) override {
-        CNOT c1(s.bits()), c2(s.bits()[1],s.bits()[0]), c3(s.bits());
-        visit(c1);
-        visit(c2);
-        visit(c3);
-	}
-
-	void visit(GateFunction& f) override {
-		return;
-	}
-
-    std::string getOpenPulseInstructionsJson() {
-        return native.substr(0,native.length()-1) + "]}";
-    }
-    // append to pulse library function
-
-	/**
-	 * The destructor
-	 */
 	virtual ~OpenPulseVisitor() {}
 };
 
