@@ -23,6 +23,7 @@
 #include "py_algorithm.hpp"
 #include "py_optimizer.hpp"
 #include "py_observable.hpp"
+#include "xacc-quantum-py.hpp"
 
 namespace py = pybind11;
 using namespace xacc;
@@ -40,6 +41,7 @@ PYBIND11_MODULE(_pyxacc, m) {
   bind_algorithm(m);
   bind_optimizer(m);
   bind_observable(m);
+  bind_quantum(m);
 
   // Expose XACC API functions
   m.def("Initialize", (void (*)(std::vector<std::string>)) & xacc::Initialize,
@@ -112,22 +114,19 @@ PYBIND11_MODULE(_pyxacc, m) {
       },
       "Set a number of options at once.");
   m.def("getAcceleratorDecorator",
-        [](const std::string name, std::shared_ptr<Accelerator> acc) {
-          auto accd = xacc::getService<AcceleratorDecorator>(name);
-          accd->setDecorated(acc);
+        [](const std::string name, std::shared_ptr<Accelerator> acc) -> std::shared_ptr<Accelerator> {
+          auto accd = xacc::getAcceleratorDecorator(name,acc);
           return accd;
         });
   m.def("getAcceleratorDecorator",
         [](const std::string name, std::shared_ptr<Accelerator> acc,
-           const PyHeterogeneousMap &options) {
-          auto accd = xacc::getService<AcceleratorDecorator>(name);
-          accd->setDecorated(acc);
+           const PyHeterogeneousMap &options) -> std::shared_ptr<Accelerator> {
           HeterogeneousMap m;
           for (auto &item : options) {
             PyHeterogeneousMap2HeterogeneousMap vis(m, item.first);
             mpark::visit(vis, item.second);
           }
-          accd->initialize(m);
+          auto accd = xacc::getAcceleratorDecorator(name,acc, m);
           return accd;
         });
   m.def("asComposite", &xacc::ir::asComposite, "");

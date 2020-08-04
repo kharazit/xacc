@@ -28,13 +28,13 @@ bool VQE::initialize(const HeterogeneousMap &parameters) {
   if (!parameters.pointerLikeExists<Observable>("observable")) {
     std::cout << "Obs was false\n";
     return false;
-  } 
-  
+  }
+
   if (!parameters.pointerLikeExists<CompositeInstruction>("ansatz")) {
     std::cout << "Ansatz was false\n";
     return false;
-  } 
-  
+  }
+
   if (!parameters.pointerLikeExists<Accelerator>("accelerator")) {
     std::cout << "Acc was false\n";
     return false;
@@ -49,22 +49,30 @@ bool VQE::initialize(const HeterogeneousMap &parameters) {
 
   // if gradient is provided
   if (parameters.pointerLikeExists<AlgorithmGradientStrategy>(
-      "gradient_strategy")){
-    gradientStrategy = parameters.get<std::shared_ptr<AlgorithmGradientStrategy>>(
-      "gradient_strategy");
+          "gradient_strategy")) {
+    gradientStrategy =
+        parameters.get<std::shared_ptr<AlgorithmGradientStrategy>>(
+            "gradient_strategy");
+    // gradientStrategy->initialize({std::make_pair("observable",
+    // xacc::as_shared_ptr(observable))});
   }
 
-  if (parameters.stringExists("gradient_strategy") && 
-      !parameters.pointerLikeExists<AlgorithmGradientStrategy>("gradient_strategy") &&
-       optimizer->isGradientBased()){
-    gradientStrategy = xacc::getService<AlgorithmGradientStrategy>(parameters.getString("gradient_strategy"));
-    gradientStrategy->optionalParameters({std::make_pair("observable", xacc::as_shared_ptr(observable))});
+  if (parameters.stringExists("gradient_strategy") &&
+      !parameters.pointerLikeExists<AlgorithmGradientStrategy>(
+          "gradient_strategy") &&
+      optimizer->isGradientBased()) {
+    gradientStrategy = xacc::getService<AlgorithmGradientStrategy>(
+        parameters.getString("gradient_strategy"));
+    gradientStrategy->initialize(
+        {std::make_pair("observable", xacc::as_shared_ptr(observable))});
   }
 
-  if ((parameters.stringExists("gradient_strategy") || 
-      parameters.pointerLikeExists<AlgorithmGradientStrategy>("gradient_strategy")) &&
-      !optimizer->isGradientBased()){
-    xacc::warning("Chosen optimizer does not support gradients. Using default.");
+  if ((parameters.stringExists("gradient_strategy") ||
+       parameters.pointerLikeExists<AlgorithmGradientStrategy>(
+           "gradient_strategy")) &&
+      !optimizer->isGradientBased()) {
+    xacc::warning(
+        "Chosen optimizer does not support gradients. Using default.");
   }
 
   return true;
@@ -82,6 +90,8 @@ void VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer) const {
   }
 
   auto kernels = observable->observe(xacc::as_shared_ptr(kernel));
+  // Cache of energy values during iterations.
+  std::vector<double> energies;
 
   // Here we just need to make a lambda kernel
   // to optimize that makes calls to the targeted QPU.
@@ -118,27 +128,32 @@ void VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer) const {
           }
         }
 
-        // Retrieve instructions for gradient, if a pointer of type 
+        // Retrieve instructions for gradient, if a pointer of type
         // AlgorithmGradientStrategy is given
-        if (gradientStrategy){
+        if (gradientStrategy) {
 
-          auto gradFsToExec = gradientStrategy->getGradientExecutions(xacc::as_shared_ptr(kernel), x);
+          auto gradFsToExec = gradientStrategy->getGradientExecutions(
+              xacc::as_shared_ptr(kernel), x);
           // Add gradient instructions to be sent to the qpu
           nInstructionsEnergy = fsToExec.size();
           nInstructionsGradient = gradFsToExec.size();
-          for (auto inst: gradFsToExec){
+          for (auto inst : gradFsToExec) {
             fsToExec.push_back(inst);
           }
-          xacc::info("Number of instructions for energy calculation: " 
-                      + std::to_string(nInstructionsEnergy));
-          xacc::info("Number of instructions for gradient calculation: "
-                      + std::to_string(nInstructionsGradient));
-
+          xacc::info("Number of instructions for energy calculation: " +
+                     std::to_string(nInstructionsEnergy));
+          xacc::info("Number of instructions for gradient calculation: " +
+                     std::to_string(nInstructionsGradient));
         }
 
         auto tmpBuffer = xacc::qalloc(buffer->size());
         accelerator->execute(tmpBuffer, fsToExec);
         auto buffers = tmpBuffer->getChildren();
+
+        auto tmp_buffer_extra_info = tmpBuffer->getInformation();
+        for (auto &[k, v] : tmp_buffer_extra_info) {
+          buffer->addExtraInfo(k, v);
+        }
 
         double energy = identityCoeff;
         auto idBuffer = xacc::qalloc(buffer->size());
@@ -159,9 +174,9 @@ void VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer) const {
             buffer->appendChild(b->name(), b);
           }
 
-        } else if (gradientStrategy){ // gradient-based optimization
+        } else if (gradientStrategy) { // gradient-based optimization
 
-          for (int i = 0; i < nInstructionsEnergy; i++) {// compute energy
+          for (int i = 0; i < nInstructionsEnergy; i++) { // compute energy
             auto expval = buffers[i]->getExpectationValueZ();
             energy += expval * coefficients[i];
             buffers[i]->addExtraInfo("coefficient", coefficients[i]);
@@ -176,12 +191,20 @@ void VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer) const {
           xacc::info(ss.str());
           ss.str(std::string());
 
-          // update gradient vector
-          
-          gradientStrategy->compute(dx, 
-            std::vector<std::shared_ptr<AcceleratorBuffer>>(buffers.begin() + nInstructionsEnergy, buffers.end()));
+          // If gradientStrategy is numerical, pass the energy
+          // We subtract the identityCoeff from the energy
+          // instead of passing the energy because the gradients
+          // only take the coefficients of parameterized instructions
+          if (gradientStrategy->isNumerical()) {
+            gradientStrategy->setFunctionValue(energy - identityCoeff);
+          }
 
-        } else {// normal VQE run
+          // update gradient vector
+          gradientStrategy->compute(
+              dx, std::vector<std::shared_ptr<AcceleratorBuffer>>(
+                      buffers.begin() + nInstructionsEnergy, buffers.end()));
+
+        } else { // normal VQE run
           for (int i = 0; i < buffers.size(); i++) {
             auto expval = buffers[i]->getExpectationValueZ();
             energy += expval * coefficients[i];
@@ -199,6 +222,8 @@ void VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer) const {
           ss << "," << x[i];
         ss << ") = " << std::setprecision(12) << energy;
         xacc::info(ss.str());
+        // Saves the energy value.
+        energies.emplace_back(energy);
         return energy;
       },
       kernel->nVariables());
@@ -207,6 +232,8 @@ void VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer) const {
 
   buffer->addExtraInfo("opt-val", ExtraInfo(result.first));
   buffer->addExtraInfo("opt-params", ExtraInfo(result.second));
+  // Adds energies so that users can examine the convergence.
+  buffer->addExtraInfo("params-energy", ExtraInfo(energies));
   return;
 }
 
@@ -223,7 +250,6 @@ VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer,
   for (auto &f : kernels) {
     kernelNames.push_back(f->name());
     std::complex<double> coeff = f->getCoefficient();
-            // std::cout << f->name() << "\n" << f->toString() <<"\n";
 
     int nFunctionInstructions = 0;
     if (f->getInstruction(0)->isComposite()) {
@@ -248,7 +274,11 @@ VQE::execute(const std::shared_ptr<AcceleratorBuffer> buffer,
   auto tmpBuffer = xacc::qalloc(buffer->size());
   accelerator->execute(tmpBuffer, fsToExec);
   auto buffers = tmpBuffer->getChildren();
-
+  auto tmp_buffer_extra_info = tmpBuffer->getInformation();
+  for (auto &[k, v] : tmp_buffer_extra_info) {
+    buffer->addExtraInfo(k, v);
+  }
+  
   double energy = identityCoeff;
   auto idBuffer = xacc::qalloc(buffer->size());
   idBuffer->addExtraInfo("coefficient", identityCoeff);

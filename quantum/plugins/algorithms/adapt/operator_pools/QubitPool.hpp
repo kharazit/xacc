@@ -14,6 +14,7 @@
 #define XACC_QUBIT_POOL_HPP_
 
 #include "adapt.hpp"
+#include "OperatorPool.hpp"
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 #include "Observable.hpp"
@@ -24,7 +25,8 @@
 using namespace xacc;
 
 namespace xacc{
-namespace algorithm{
+// namespace algorithm{
+namespace quantum{
 
 class QubitPool : public OperatorPool {
 
@@ -145,8 +147,7 @@ xacc::info(std::to_string(varIdx));
     // Create instruction for new operator
     gate->expand(
         {std::make_pair("pauli", pool[opIdx]->toString()),
-        std::make_pair("param_id", "x" + std::to_string(varIdx)),
-        std::make_pair("no-i", true)});
+        std::make_pair("param_id", "x" + std::to_string(varIdx))});
 
     return gate;
 

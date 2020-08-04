@@ -7,7 +7,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Overview &mdash; XACC 1.0.0 documentation</title>
+  <title> &mdash; XACC 1.0.0 documentation</title>
   
 
   
@@ -92,6 +92,7 @@
 <li class="toctree-l1"><a class="reference internal" href="extensions.html">Extensions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="advanced.html">Advanced</a></li>
 <li class="toctree-l1"><a class="reference internal" href="developers.html">Developers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
 </ul>
 
             
@@ -138,7 +139,7 @@
     
       <li><a href="#" class="icon icon-home"></a> &raquo;</li>
         
-      <li>Overview</li>
+      <li></li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -157,9 +158,9 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <img alt="_images/xacc_full_logo.svg" src="_images/xacc_full_logo.svg" /><div class="section" id="overview">
-<h1>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h1>
-<p>XACC is an extensible compilation framework for hybrid quantum-classical
+  <img alt="_images/xacc_full_logo.svg" src="_images/xacc_full_logo.svg" /><div class="section" id="id1">
+<h1><a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>XACC (pronounced as it’s spelled) is an extensible compilation framework for hybrid quantum-classical
 computing architectures. It provides extensible language frontend and hardware
 backend compilation components glued together via a novel, polymorphic quantum intermediate
 representation. XACC currently supports quantum-classical programming and enables
@@ -174,22 +175,21 @@ manner that is independent to the quantum programming language and hardware.
 This enables one to write quantum code once, and perform benchmarking,
 verification and validation, and performance studies for a set of virtual
 (simulators) or physical hardware.</p>
-</div>
 <div class="section" id="modular-infrastructure">
-<h1>Modular Infrastructure<a class="headerlink" href="#modular-infrastructure" title="Permalink to this headline">¶</a></h1>
+<h2>Modular Infrastructure<a class="headerlink" href="#modular-infrastructure" title="Permalink to this headline">¶</a></h2>
 <p>XACC relies on a project called <a class="reference external" href="http://github.com/cppmicroservices/cppmicroservices">CppMicroServices</a> -
 a native C++ implementation of the <a class="reference external" href="https://www.osgi.org/developer/architecture/">OSGi</a>
 specification that enables an extensible, modular
 plugin infrastructure for quantum compilers and accelerators.</p>
 </div>
 <div class="section" id="description-of-architecture">
-<h1>Description of Architecture<a class="headerlink" href="#description-of-architecture" title="Permalink to this headline">¶</a></h1>
+<h2>Description of Architecture<a class="headerlink" href="#description-of-architecture" title="Permalink to this headline">¶</a></h2>
 <p>For a comprehensive discussion of all components of the XACC programming model and architecture,
 please refer to this <a class="reference external" href="https://arxiv.org/abs/1911.02452">manuscript</a>.</p>
 <p>For class documentation, check out this <a class="reference external" href="https://ornl-qci.github.io/xacc-api-docs/">site</a>.</p>
 </div>
 <div class="section" id="xacc-development-team">
-<h1>XACC Development Team<a class="headerlink" href="#xacc-development-team" title="Permalink to this headline">¶</a></h1>
+<h2>XACC Development Team<a class="headerlink" href="#xacc-development-team" title="Permalink to this headline">¶</a></h2>
 <p>XACC is developed and maintained by:</p>
 <ul class="simple">
 <li><p><a class="reference external" href="mailto:mccaskeyaj&#37;&#52;&#48;ornl&#46;gov">Alex McCaskey</a></p></li>
@@ -201,10 +201,14 @@ please refer to this <a class="reference external" href="https://arxiv.org/abs/1
 <li><p><a class="reference external" href="mailto:rsand3642&#37;&#52;&#48;gmail&#46;com">Ryan Sand</a></p></li>
 <li><p><a class="reference external" href="mailto:czhao39&#37;&#52;&#48;gmail&#46;com">Charles Zhao</a></p></li>
 <li><p><a class="reference external" href="mailto:billingsjj&#37;&#52;&#48;ornl&#46;gov">Jay Billings</a></p></li>
+<li><p><a class="reference external" href="mailto:nguyentm&#37;&#52;&#48;ornl&#46;gov">Thien Nguyen</a></p></li>
+<li><p><a class="reference external" href="mailto:claudinodc&#37;&#52;&#48;ornl&#46;gov">Daniel Chaves-Claudino</a></p></li>
+<li><p><a class="reference external" href="mailto:kharazitd&#37;&#52;&#48;ornl&#46;gov">Tyler Kharazi</a></p></li>
+<li><p><a class="reference external" href="mailto:santanaam&#37;&#52;&#48;ornl&#46;gov">Anthony Santana</a></p></li>
 </ul>
 </div>
 <div class="section" id="questions-bug-reporting-and-issue-tracking">
-<h1>Questions, Bug Reporting, and Issue Tracking<a class="headerlink" href="#questions-bug-reporting-and-issue-tracking" title="Permalink to this headline">¶</a></h1>
+<h2>Questions, Bug Reporting, and Issue Tracking<a class="headerlink" href="#questions-bug-reporting-and-issue-tracking" title="Permalink to this headline">¶</a></h2>
 <p>Questions, bug reporting and issue tracking are provided by GitHub. Please
 report all bugs by creating a <a class="reference external" href="https://github.com/eclipse/xacc/issues/new">new issue</a>.
 You can ask questions by creating a new issue with the question tag.</p>
@@ -315,11 +319,29 @@ You can ask questions by creating a new issue with the question tag.</p>
 <li class="toctree-l2"><a class="reference internal" href="developers.html#extending-accelerator-for-new-simulators">Extending Accelerator for new Simulators</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="tutorials.html#pulse-control-tutorial">Pulse Control Tutorial</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#quick-start-with-docker">Quick Start with Docker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#basics-of-manipulating-quantum-systems-in-xacc">Basics of Manipulating Quantum Systems in XACC</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#returning-the-fidelity">Returning the Fidelity</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="tutorials.html#case-1-returning-the-probability-of-the-1-state-for-a-single-qubit">Case 1: Returning the probability of the |1&gt; state for a single qubit:</a></li>
+<li class="toctree-l4"><a class="reference internal" href="tutorials.html#case-2-returning-the-probability-of-the-1-and-2-states-for-a-single-qutrit">Case 2: Returning the probability of the |1&gt; and |2&gt; states for a single qutrit:</a></li>
+<li class="toctree-l4"><a class="reference internal" href="tutorials.html#case-3-fidelity-calculation-using-density-matrices">Case 3: Fidelity Calculation using Density Matrices</a></li>
+<li class="toctree-l4"><a class="reference internal" href="tutorials.html#case-4-quantum-process-tomography">Case 4: Quantum Process Tomography:</a></li>
+<li class="toctree-l4"><a class="reference internal" href="tutorials.html#case-4a-quantum-process-tomography-from-the-gate-level">Case 4A: Quantum Process Tomography from the Gate-Level:</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#optimizing-controls-for-quantum-systems">Optimizing Controls for Quantum Systems</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorials.html#alternative-hamiltonian-declaration">Alternative Hamiltonian Declaration</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
 <div class="section" id="publications">
-<h1>Publications<a class="headerlink" href="#publications" title="Permalink to this headline">¶</a></h1>
+<h2>Publications<a class="headerlink" href="#publications" title="Permalink to this headline">¶</a></h2>
 <p>The following publications describe XACC or experiments leveraging the it.</p>
 <p>[1] <a class="reference external" href="https://arxiv.org/abs/1911.02452">XACC: A System-Level Software Infrastructure for Heterogeneous Quantum-Classical Computing</a></p>
 <p>[2] <a class="reference external" href="https://www.sciencedirect.com/science/article/pii/S2352711018300700">A language and hardware independent approach to quantum-classical computing</a></p>
@@ -328,12 +350,13 @@ You can ask questions by creating a new issue with the question tag.</p>
 <p>[5] <a class="reference external" href="https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.120.210501">Cloud Quantum Computing of an Atomic Nucleus</a></p>
 <p>[6] <a class="reference external" href="https://journals.aps.org/pra/abstract/10.1103/PhysRevA.98.032331">Quantum-Classical Computations of Schwinger Model Dynamics using Quantum Computers</a></p>
 <div class="section" id="indices-and-tables">
-<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h2>
+<h3>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h3>
 <ul class="simple">
 <li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
 <li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
 <li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
 </ul>
+</div>
 </div>
 </div>
 

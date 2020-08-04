@@ -14,6 +14,7 @@
 #define XACC_SINGLET_ADAPTED_UCCSD_POOL_HPP_
 
 #include "adapt.hpp"
+#include "OperatorPool.hpp"
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 #include "Observable.hpp"
@@ -28,7 +29,8 @@ using namespace xacc;
 using namespace xacc::quantum;
 
 namespace xacc{
-namespace algorithm{
+// namespace algorithm{
+namespace quantum{
 
 class SingletAdaptedUCCSD : public OperatorPool {
 
@@ -71,11 +73,8 @@ public:
         // spin-adapted singles
         FermionOperator fermiOp;
         fermiOp = FermionOperator({{aa, 1}, {ia, 0}}, 0.5);
-        fermiOp -= FermionOperator({{ia, 1}, {aa, 0}}, 0.5);
-
         fermiOp += FermionOperator({{ab, 1}, {ib, 0}}, 0.5);
-        fermiOp -= FermionOperator({{ib, 1}, {ab, 0}}, 0.5);
-
+        fermiOp -= fermiOp.hermitianConjugate();
         pool.push_back(std::dynamic_pointer_cast<Observable>(std::make_shared<FermionOperator>(fermiOp)));
 
       }
@@ -96,38 +95,21 @@ public:
             int bb = b + _nOccupied + _nOrbs;
 
             FermionOperator fermiOp;
+
             fermiOp = FermionOperator({{aa, 1}, {ia, 0}, {ba, 1}, {ja, 0}}, 2.0 / std::sqrt(24.0));
-            fermiOp -= FermionOperator({{ja, 1}, {ba, 0}, {ia, 1}, {aa, 0}}, 2.0 / std::sqrt(24.0));
-
             fermiOp += FermionOperator({{ab, 1}, {ib, 0}, {bb, 1}, {jb, 0}}, 2.0 / std::sqrt(24.0));
-            fermiOp -= FermionOperator({{jb, 1}, {bb, 0}, {ib, 1}, {ab, 0}}, 2.0 / std::sqrt(24.0));
-
             fermiOp += FermionOperator({{aa, 1}, {ia, 0}, {bb, 1}, {jb, 0}}, 1.0 / std::sqrt(24.0));
-            fermiOp -= FermionOperator({{jb, 1}, {bb, 0}, {ia, 1}, {aa, 0}}, 1.0 / std::sqrt(24.0));
-
             fermiOp += FermionOperator({{ab, 1}, {ib, 0}, {ba, 1}, {ja, 0}}, 1.0 / std::sqrt(24.0));
-            fermiOp -= FermionOperator({{ja, 1}, {ba, 0}, {ib, 1}, {ab, 0}}, 1.0 / std::sqrt(24.0));
-
             fermiOp += FermionOperator({{aa, 1}, {ib, 0}, {bb, 1}, {ja, 0}}, 1.0 / std::sqrt(24.0));
-            fermiOp -= FermionOperator({{ja, 1}, {bb, 0}, {ib, 1}, {aa, 0}}, 1.0 / std::sqrt(24.0));
-
             fermiOp += FermionOperator({{ab, 1}, {ia, 0}, {ba, 1}, {jb, 0}}, 1.0 / std::sqrt(24.0));
-            fermiOp -= FermionOperator({{jb, 1}, {ba, 0}, {ia, 1}, {ab, 0}}, 1.0 / std::sqrt(24.0));
-
+            fermiOp -= fermiOp.hermitianConjugate();
             pool.push_back(std::dynamic_pointer_cast<Observable>(std::make_shared<FermionOperator>(fermiOp)));
 
             fermiOp = FermionOperator({{aa, 1}, {ia, 0}, {bb, 1}, {jb, 0}}, 1.0 / (2.0 * std::sqrt(2.0)));
-            fermiOp -= FermionOperator({{jb, 1}, {bb, 0}, {ia, 1}, {aa, 0}}, 1.0 / (2.0 * std::sqrt(2.0)));
-
             fermiOp += FermionOperator({{ab, 1}, {ib, 0}, {ba, 1}, {ja, 0}}, 1.0 / (2.0 * std::sqrt(2.0)));
-            fermiOp -= FermionOperator({{ja, 1}, {ba, 0}, {ib, 1}, {ab, 0}}, 1.0 / (2.0 * std::sqrt(2.0)));
-
             fermiOp += FermionOperator({{aa, 1}, {ib, 0}, {bb, 1}, {ja, 0}}, -1.0 / (2.0 * std::sqrt(2.0)));
-            fermiOp -= FermionOperator({{ja, 1}, {bb, 0}, {ib, 1}, {aa, 0}}, -1.0 / (2.0 * std::sqrt(2.0)));
-
             fermiOp += FermionOperator({{ab, 1}, {ia, 0}, {ba, 1}, {jb, 0}}, -1.0 / (2.0 * std::sqrt(2.0)));
-            fermiOp -= FermionOperator({{jb, 1}, {ba, 0}, {ia, 1}, {ab, 0}}, -1.0 / (2.0 * std::sqrt(2.0)));
-
+            fermiOp -= fermiOp.hermitianConjugate();
             pool.push_back(std::dynamic_pointer_cast<Observable>(std::make_shared<FermionOperator>(fermiOp)));
 
           }
@@ -162,8 +144,7 @@ public:
     auto jwOp = xacc::getService<ObservableTransform>("jw")->transform(pool[opIdx]);
     gate->expand(
         {std::make_pair("pauli", jwOp->toString()),
-        std::make_pair("param_id", "x" + std::to_string(varIdx)),
-        std::make_pair("no-i", true)});
+        std::make_pair("param_id", "x" + std::to_string(varIdx))});
 
     return gate;
 
