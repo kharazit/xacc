@@ -19,16 +19,15 @@
 
 using namespace xacc;
 
+
 TEST(AssignmentErrorKernelDecoratorTest, checkBasic) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator(
-        "aer", {std::make_pair("shots", 2048),
-                std::make_pair("backend", "ibmq_johannesburg"),
+    auto accelerator = xacc::getAccelerator("aer",
+               {std::make_pair("shots", 2048),
                 std::make_pair("readout_error", true),
                 std::make_pair("gate_error", false),
                 std::make_pair("thermal_relaxation", false)});
-
     int num_qubits = 2;
 
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
@@ -43,8 +42,7 @@ Measure(q[1]);
 )");
     auto bell = xacc::getCompiled("bell");
     auto decBuffer = xacc::qalloc(num_qubits);
-    auto decorator =
-        xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
+    auto decorator = xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
     decorator->initialize({std::make_pair("gen-kernel", true)});
     decorator->setDecorated(accelerator);
     decorator->execute(decBuffer, bell);
@@ -61,7 +59,6 @@ TEST(AssignmentErrorKernelDecoratorTest, checkVectorize) {
   if (xacc::hasAccelerator("aer")) {
     auto accelerator = xacc::getAccelerator(
         "aer", {std::make_pair("shots", 2048),
-                std::make_pair("backend", "ibmq_johannesburg"),
                 std::make_pair("readout_error", true),
                 std::make_pair("gate_error", true),
                 std::make_pair("thermal_relaxation", true)});
@@ -104,7 +101,6 @@ TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
   if (xacc::hasAccelerator("aer")) {
     auto accelerator = xacc::getAccelerator(
         "aer", {std::make_pair("shots", 2048),
-                std::make_pair("backend", "ibmq_tokyo"),
                 std::make_pair("readout_error", true),
                 std::make_pair("gate_error", true),
                 std::make_pair("thermal_relaxation", true)});
@@ -130,6 +126,67 @@ Measure(q[1]);
   }
 }
 
+
+TEST(AssignmentErrorKernelDecoratorTest, checkCumulant) {
+  xacc::set_verbose(true);
+  if (xacc::hasAccelerator("aer")) {
+    auto accelerator = xacc::getAccelerator("qpp", 
+                {std::make_pair("shots", 2048)});
+    int num_qbits = 4;
+    auto compiler = xacc::getService<xacc::Compiler>("xasm");
+    xacc::qasm(R"(
+    .compiler xasm
+    .circuit circuit
+    .qbit q
+    H(q[0]);
+    H(q[1]);
+    H(q[2]);
+    H(q[3]);
+    )");
+    auto hadamard = xacc::getCompiled("circuit");
+    std::shared_ptr<CompositeInstruction> circuit = hadamard;
+    auto buffer = xacc::qalloc(num_qbits);
+    auto decorator =
+        xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
+    decorator->initialize({std::make_pair("gen-kernel", true), 
+                            std::make_pair("layout", std::vector<std::size_t> {0, 2, 1, 3}),
+                            std::make_pair("cumulant", true),
+                            std::make_pair("order", 2),
+                            std::make_pair("spectators", false) });
+    decorator->setDecorated(accelerator);
+    decorator->execute(buffer, circuit);
+    buffer->print();
+  }
+}
+
+TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
+  xacc::set_verbose(true);
+  if (xacc::hasAccelerator("qpp")) {
+    auto accelerator = xacc::getAccelerator("qpp", {std::make_pair("shots", 2048)};
+    int num_qbits = 4;
+    auto compiler = xacc::getService<xacc::Compiler>("xasm");
+    xacc::qasm(R"(
+    .compiler xasm
+    .circuit circ1
+    .qbit q
+    H(q[1]);
+    H(q[0]);
+    H(q[2]);
+    H(q[3]);
+    )");
+    auto hadamard = xacc::getCompiled("circ1");
+    std::shared_ptr<CompositeInstruction> circuit = hadamard;
+    auto buffer = xacc::qalloc(num_qbits);
+    auto decorator =
+        xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
+    decorator->initialize({std::make_pair("gen-kernel", true), 
+                           std::make_pair("layout", std::vector<std::size_t> {6, 7, 8, 9}),
+                           std::make_pair("cumulant", true),
+                           std::make_pair("cluster_map", std::vector<std::vector<std::size_t>> {{6, 7},{8, 9}}) });
+    decorator->setDecorated(accelerator);
+    decorator->execute(buffer, circuit);
+  }
+}
 int main(int argc, char **argv) {
   int ret = 0;
   xacc::Initialize();
