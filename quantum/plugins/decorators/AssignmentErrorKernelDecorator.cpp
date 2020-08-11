@@ -48,7 +48,7 @@ void AssignmentErrorKernelDecorator::initialize(
     std::cout<<"Generating Error kernel using cumulant method\n";
     cumulant = params.get<bool>("cumulant");
     if(order == 0){
-      std::cout<<"order not specified, setting order = 2";
+      std::cout<<"order not specified, setting order = 2 \n";
       order = 2;
     }
   }
@@ -88,7 +88,6 @@ void AssignmentErrorKernelDecorator::execute(
     std::cout<<"if cumulant\n";
     circuits = cumulantCircuits();
     circuits.push_back(function);
-    std::cout<<"all circuits added to circuits vector\n";
   }
   else{
     circuits = kernelCircuits(buffer);
@@ -96,8 +95,13 @@ void AssignmentErrorKernelDecorator::execute(
     circuits.push_back(function);
   }
 
+
   //vector of buffers the last one corresponding to the passed in user program
+  std::cout<<"Did this shit execute?\n";
+  std::cout<<"layout = ";
+  printVec(this->layout);
   decoratedAccelerator->execute(buffer, circuits);
+  std::cout<<"yes\n";
   auto buffers = genKernel(buffer);
   int shots = 0;
   for(auto &x: buffers[0]->getMeasurementCounts()){
@@ -114,9 +118,22 @@ void AssignmentErrorKernelDecorator::execute(
     mit_dist = errorKernel.inverse()*init_dist;
   }
   else{
-    mit_dist = errorKernel*init_d
+    mit_dist = errorKernel*init_dist;
   }
-  
+
+
+  //finding shots that map below zero
+  int new_shots = shots;
+  for(int i =0; i < mit_dist.size(); i++){
+    if(mit_dist[i] < 0.0){
+      new_shots -= floor(shots*mit_dist[i] +0.5);
+      mit_dist[i] = 0;
+    }
+  }
+  //updating distribution with new shot size
+  for(int i = 0; i < mit_dist.size(); i++){
+    mit_dist[i] = shots/new_shots * mit_dist[i];
+  }
 
   std::map<std::string, double> orig_counts;
   for(auto &x:permutations){
@@ -126,9 +143,6 @@ void AssignmentErrorKernelDecorator::execute(
     i++;
   }
   buffers.back()->addExtraInfo("unmitigated-counts", orig_counts);
-
-
-
   }
 
 void AssignmentErrorKernelDecorator::execute(
@@ -157,7 +171,6 @@ void AssignmentErrorKernelDecorator::execute(
     }
     std::cout<<"all circuits size = "<<circuits.size()<<"\n";
   }
-
 
   // get the raw states
   decoratedAccelerator->execute(buffer, circuits);

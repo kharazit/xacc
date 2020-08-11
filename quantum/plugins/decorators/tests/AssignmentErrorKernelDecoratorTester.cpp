@@ -20,14 +20,11 @@
 using namespace xacc;
 
 
+/*
 TEST(AssignmentErrorKernelDecoratorTest, checkBasic) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer",
-               {std::make_pair("shots", 2048),
-                std::make_pair("readout_error", true),
-                std::make_pair("gate_error", false),
-                std::make_pair("thermal_relaxation", false)});
+    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("shots", "2048")});
     int num_qubits = 2;
 
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
@@ -84,8 +81,7 @@ Measure(q[1]);
 
     auto hadamard = xacc::getCompiled("hadamard");
     auto bell1 = xacc::getCompiled("bell1");
-    std::vector<std::shared_ptr<CompositeInstruction>> circuits = {hadamard,
-                                                                   bell1};
+    std::vector<std::shared_ptr<CompositeInstruction>> circuits = {hadamard, bell1};
     auto buffer = xacc::qalloc(num_qbits);
     auto decorator =
         xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
@@ -96,36 +92,34 @@ Measure(q[1]);
   }
 }
 
+*/
+
 TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator(
-        "aer", {std::make_pair("shots", 2048),
-                std::make_pair("readout_error", true),
-                std::make_pair("gate_error", true),
-                std::make_pair("thermal_relaxation", true)});
+    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_16_melbourne"));
     int num_qbits = 2;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
-.compiler xasm
-.circuit hadamard1
-.qbit q
-H(q[1]);
-Measure(q[0]);
-Measure(q[1]);
-)");
+    .compiler xasm
+    .circuit hadamard1
+    .qbit q
+    H(q[1]);
+    Measure(q[0]);
+    Measure(q[1]);
+    )");
     auto hadamard = xacc::getCompiled("hadamard1");
     std::shared_ptr<CompositeInstruction> circuit = hadamard;
     auto buffer = xacc::qalloc(num_qbits);
     auto decorator =
         xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
-    decorator->initialize({std::make_pair("gen-kernel", true), std::make_pair("layout", std::vector<std::size_t> {6,7})});
+    decorator->initialize({std::make_pair("gen-kernel", true), std::make_pair("layout", std::vector<std::size_t> {1,0})});
     decorator->setDecorated(accelerator);
     decorator->execute(buffer, circuit);
     buffer->print();
   }
 }
-
+/*
 
 TEST(AssignmentErrorKernelDecoratorTest, checkCumulant) {
   xacc::set_verbose(true);
@@ -155,14 +149,14 @@ TEST(AssignmentErrorKernelDecoratorTest, checkCumulant) {
                             std::make_pair("spectators", false) });
     decorator->setDecorated(accelerator);
     decorator->execute(buffer, circuit);
-    buffer->print();
   }
 }
 
+*/
 TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
   xacc::set_verbose(true);
-  if (xacc::hasAccelerator("qpp")) {
-    auto accelerator = xacc::getAccelerator("qpp", {std::make_pair("shots", 2048)};
+  if (xacc::hasAccelerator("aer")) {
+    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("sim-type", "statevector")});
     int num_qbits = 4;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
@@ -180,9 +174,9 @@ TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
     auto decorator =
         xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
     decorator->initialize({std::make_pair("gen-kernel", true), 
-                           std::make_pair("layout", std::vector<std::size_t> {6, 7, 8, 9}),
+                           std::make_pair("layout", std::vector<std::size_t> {0, 3, 1, 2}),
                            std::make_pair("cumulant", true),
-                           std::make_pair("cluster_map", std::vector<std::vector<std::size_t>> {{6, 7},{8, 9}}) });
+                           std::make_pair("cluster-map", std::vector<std::vector<std::size_t>> {{0, 3},{1, 2}}) });
     decorator->setDecorated(accelerator);
     decorator->execute(buffer, circuit);
   }

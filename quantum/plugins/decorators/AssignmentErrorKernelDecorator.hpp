@@ -248,13 +248,14 @@ protected:
     if(cluster_map.size() > 0){
       std::cout<<"cluster map invoked\n";
       for(auto &x: this -> cluster_map){
+        std::cout<<"cluster "; 
+        printVec(x);
+        std::cout<<"\n";
+        std::cout<<"circuits for cluster:\n";
         for(auto &circ:genCircuits(x)){
+          std::cout<<circ->toString()<<"\n";
           all_circuits.push_back(circ);
         }
-      }
-      std::cout<<"cluster circuits:\n";
-      for(auto &x:all_circuits){
-        std::cout<<x->toString()<<std::endl;
       }
     }
     else{
@@ -268,7 +269,6 @@ protected:
     }
     return all_circuits;
   }
-
 
   std::vector<std::shared_ptr<CompositeInstruction>> 
   kernelCircuits(std::shared_ptr<AcceleratorBuffer> buffer){
@@ -295,7 +295,6 @@ protected:
       }
       circuits.push_back(circuit);
     }
-    std::cout<<"generated " <<circuits.size()<<" circuits\n";
     return circuits;
   }
 
