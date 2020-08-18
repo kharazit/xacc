@@ -19,8 +19,8 @@
 
 using namespace xacc;
 
-
 /*
+
 TEST(AssignmentErrorKernelDecoratorTest, checkBasic) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
@@ -92,7 +92,7 @@ Measure(q[1]);
   }
 }
 
-*/
+
 
 TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
   xacc::set_verbose(true);
@@ -119,12 +119,12 @@ TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
     buffer->print();
   }
 }
-/*
 
-TEST(AssignmentErrorKernelDecoratorTest, checkCumulant) {
+
+TEST(AssignmentErrorKernelDecoratorTest, checkCumulant){
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("qpp", 
+    auto accelerator = xacc::getAccelerator("aer", 
                 {std::make_pair("shots", 2048)});
     int num_qbits = 4;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
@@ -136,6 +136,10 @@ TEST(AssignmentErrorKernelDecoratorTest, checkCumulant) {
     H(q[1]);
     H(q[2]);
     H(q[3]);
+    Measure(q[0]);
+    Measure(q[1]);
+    Measure(q[2]);
+    Measure(q[3]);
     )");
     auto hadamard = xacc::getCompiled("circuit");
     std::shared_ptr<CompositeInstruction> circuit = hadamard;
@@ -152,11 +156,11 @@ TEST(AssignmentErrorKernelDecoratorTest, checkCumulant) {
   }
 }
 
-*/
+
 TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("sim-type", "statevector")});
+    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_16_melbourne"));
     int num_qbits = 4;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
@@ -167,9 +171,13 @@ TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
     H(q[0]);
     H(q[2]);
     H(q[3]);
+    Measure(q[0]);
+    Measure(q[1]);
+    Measure(q[2]);
+    Measure(q[3]);
     )");
     auto hadamard = xacc::getCompiled("circ1");
-    std::shared_ptr<CompositeInstruction> circuit = hadamard;
+    std::shared_ptr<CompositeInstruction> circuit = hadamard; 
     auto buffer = xacc::qalloc(num_qbits);
     auto decorator =
         xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
@@ -178,6 +186,43 @@ TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
                            std::make_pair("cumulant", true),
                            std::make_pair("cluster-map", std::vector<std::vector<std::size_t>> {{0, 3},{1, 2}}) });
     decorator->setDecorated(accelerator);
+    decorator->execute(buffer, circuit);
+  }
+}
+
+*/
+
+TEST(AssignmentErrorKernelDecoratorTest, checkSpectators) {
+  xacc::set_verbose(true);
+  if (xacc::hasAccelerator("aer")) {
+    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_johannesburg"));
+    int num_qbits = 4;
+    auto compiler = xacc::getService<xacc::Compiler>("xasm");
+    xacc::qasm(R"(
+    .compiler xasm
+    .circuit circ1
+    .qbit q
+    H(q[0]);
+    H(q[1]);
+    H(q[2]);
+    H(q[3]);
+    Measure(q[0]);
+    Measure(q[1]);
+    Measure(q[2]);
+    Measure(q[3]);
+    )");
+    auto hadamard = xacc::getCompiled("circ1");
+    std::shared_ptr<CompositeInstruction> circuit = hadamard; 
+    auto buffer = xacc::qalloc(num_qbits);
+    auto decorator =
+        xacc::getService<AcceleratorDecorator>("assignment-error-kernel");
+    decorator->initialize({std::make_pair("gen-kernel", true), 
+                           std::make_pair("layout", std::vector<std::size_t> {0, 3, 1, 2}),
+                           std::make_pair("cumulant", true),
+                           std::make_pair("spectators", true),
+                           std::make_pair("cluster-map", std::vector<std::vector<std::size_t>> {{0, 3},{1, 2}}) });
+    decorator->setDecorated(accelerator);
+    std::cout<<"execute\n";
     decorator->execute(buffer, circuit);
   }
 }

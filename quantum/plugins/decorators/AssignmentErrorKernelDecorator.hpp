@@ -67,7 +67,8 @@ protected:
     return bitstring;
   }
 
-  std::vector<std::vector<std::vector<std::size_t>>> genPartitions(const std::vector<std::size_t>& elements){
+  std::vector<std::vector<std::vector<std::size_t>>> 
+  genPartitions(const std::vector<std::size_t>& elements){
     std::vector<std::vector<std::vector<std::size_t>>> fList;
     std::vector<std::vector<std::size_t>> lists;
     std::vector<std::size_t> indexes(elements.size(), 0); // Allocate?
@@ -129,14 +130,14 @@ protected:
   }
 
 
-  std::vector<std::shared_ptr<CompositeInstruction>> genCircuits(std::vector<std::size_t> qubits){
+  std::vector<std::shared_ptr<CompositeInstruction>> 
+  genCircuits(std::vector<std::size_t> qubits){
     //generate all circuits needed for kernel on qubits
     if(spectators){
       std::cout<<"running with spectator qubits\n";
       return genCircuitsSpectators(qubits);
     }
     else{
-      std::cout<<"\n";
       int num_bits = qubits.size();
       this->permutations = genPermutations(num_bits);
       std::vector<std::shared_ptr<CompositeInstruction>> circuits;
@@ -164,10 +165,26 @@ protected:
     }
   }
 
-  std::vector<std::shared_ptr<CompositeInstruction>> genCircuitsSpectators(std::vector<std::size_t> qubits){
-    //generate circuits with spectator hadamards on qubits not in qubits, but in layout
-    int num_bits = layout.size();
-    this->permutations = genPermutations(qubits.size());
+  std::vector<std::shared_ptr<CompositeInstruction>> 
+  genCircuitsSpectators(std::vector<std::size_t> qubits){
+    //generate circuits with spectator hadamards on qubits not in qubit, but in layout
+    std::cout<<"qubits passed:\n";
+    for(auto &x: qubits){
+      std::cout<<x<<" ";
+    }
+    std::cout<<"\n";
+    int num_bits = qubits.size();
+    auto permutations = genPermutations(qubits.size());
+    std::vector<int> qubit_idxs_in_layout;
+    for(auto &x:qubits){
+      auto it = std::find(layout.begin(), layout.end(), x);
+      int idx = std::distance(layout.begin(), it);
+      qubit_idxs_in_layout.push_back(idx);
+    }
+    for(auto &x: qubit_idxs_in_layout){
+      std::cout<<x<<" ";
+    }
+    std::cout<<"\n";
     std::vector<std::shared_ptr<CompositeInstruction>> circuits; 
     auto provider = xacc::getIRProvider("quantum");
     int pow_bits = std::pow(2, qubits.size());
@@ -176,16 +193,18 @@ protected:
         int j = num_bits-1;
         for (char c : permutations[i]) {
           if (c == '1') {
-            auto x = provider->createInstruction("X", j);
-            circuit->addInstruction(x);
-          }
-          else{
-            auto x = provider->createInstruction("H", j);
+            auto x = provider->createInstruction("X", qubit_idxs_in_layout[j]);
             circuit->addInstruction(x);
           }
           j = (j-1)%num_bits;
         }
-        for(int i = 0; i < num_bits; i++){
+        for(int i = 0; i < layout.size(); i++){
+          if(std::find(qubits.begin(), qubits.end(), layout[i]) == qubits.end()){
+            auto H = provider->createInstruction("H", i);
+            circuit->addInstruction(H);
+          } 
+        }
+        for(int i = 0; i < layout.size(); i++){
           circuit->addInstruction(provider->createInstruction("Measure", i));
         }
         if (!layout.empty()){
@@ -215,23 +234,25 @@ protected:
 
   Eigen::MatrixXd trace(std::vector<std::vector<double>>& dists, std::vector<std::size_t>& idxs){
     //Return subspace of only qubits on idxs
-    int num_qubits = (this->layout).size();
+    std::cout<<"idxs: "; printVec(idxs);
     int new_size = std::pow(2, idxs.size());
     Eigen::MatrixXd new_mat(new_size, new_size);
+    new_mat.setZero(new_size,new_size);
     int x = 0;
     for(auto &dist:dists){
+      std::cout<<"x_idx: "<<x<<"\n";
       int y = 0;
       for(double &val:dist){
-        y++;
-        std::string bits_x = std::bitset< 64 >( x ).to_string();
         std::string bits_y = std::bitset< 64 >( y ).to_string();
-        std::string new_x = "";
         std::string new_y = "";
         for(std::size_t &idx: idxs){
-          new_x += bits_x[idx];
-          new_y += bits_y[idx];
+          new_y += bits_y[63-idx];
         }
-        new_mat(std::stoi(new_x, 0, 2), std::stoi(new_y, 0, 2)) += val;
+        int y_idx = std::stoi(new_y, 0, 2);
+        std::cout<<"y_idx: "<<y_idx<<" ";
+        std::cout<<"val: "<<val<<"\n";
+        new_mat(x, y_idx) += val;
+        y++;
       }
       x++;
     }
@@ -320,7 +341,6 @@ protected:
         col ++;
       }
     }
-
     this->errorKernel = kernel;
 
     buffers.erase(buffers.begin(), buffers.begin()+pow_bits);
@@ -333,6 +353,7 @@ protected:
     std::cout<<"sucesful run of genKernel\n";
     return buffers;
   }
+
   std::vector<std::shared_ptr<AcceleratorBuffer>>
    genCumulantKernel(std::shared_ptr<AcceleratorBuffer> buffer){
     auto buffers = buffer->getChildren();
@@ -349,10 +370,15 @@ protected:
     else{
       combinations = genCombinations(this->layout, this->order);
     }
+    int shot_size = 0;
+    for(auto &x:buffers[0]->getMeasurementCounts()){
+      shot_size += x.second;
+    }
+    std::cout<<"num shots: "<<shot_size<<"\n";
     for(auto &comb : combinations){
       int pow_size = std::pow(2, comb.size());
       if(spectators){
-        std::vector<std::vector<double>> kernel;
+        std::vector<std::vector<double>> kernel(std::pow(2, comb.size()), std::vector<double>(std::pow(2, layout.size())));
         for(auto &perm:genPermutations(comb.size())){
           for(auto &perm_y:genPermutations(this->layout.size())){
             int x = std::stoi(perm, 0, 2);
@@ -361,7 +387,27 @@ protected:
           }
           i++;
         }
-        kernels[vecToString(comb)] = trace(kernel, comb);
+        std::vector<std::size_t> comb_idxs;
+        for(auto &x: comb){
+          auto it = std::find(layout.begin(), layout.end(), x);
+          int idx = std::distance(layout.begin(), it);
+          comb_idxs.push_back(idx);
+        }
+        std::cout<<"distributions: \n";
+        for(auto &dist:kernel){
+          for(auto &val:dist){
+            std::cout<<val<<" ";
+          }
+          std::cout<<"\n";
+        }
+        auto mat = shot_size*trace(kernel, comb_idxs);
+        for(int i = 0; i < mat.rows(); i++){
+          for(int j = 0; j < mat.cols(); j++){
+            std::cout<<mat(i,j)<<" ";
+          }
+          std::cout<<"\n";
+        }
+        kernels[vecToString(comb)] = mat;
       }
       else{
         Eigen::MatrixXd kernel(pow_size,pow_size);
@@ -369,44 +415,61 @@ protected:
           for(auto &perm_y : genPermutations(comb.size()) ){
             int x = stoi(perm, 0, 2);
             int y = stoi(perm_y, 0, 2);
-            kernel(x,y) = buffers[i]->computeMeasurementProbability(perm_y);
+            kernel(x,y) =  buffers[i]->computeMeasurementProbability(perm_y);
           }
           i++;
         }
-      kernels[vecToString(comb)] = kernel;
+        std::cout<<"kernel for "; printVec(comb); std::cout<<"\n";
+        kernels[vecToString(comb)] = shot_size*kernel;
+        for(int i = 0; i < kernel.rows(); i++){
+          for(int j = 0; j < kernel.cols(); j++){
+            std::cout<<kernel(i,j)<<" ";
+          }
+          std::cout<<"\n";
+        }
       }
     }
     //don't need circuits involving kernel generation anymore
     buffers.erase(buffers.begin(), buffers.begin()+i);
     std::cout<<"circuits not used for kernel generation erased\n";
     std::cout<<"num circuits left: "<<buffers.size()<<"\n";
-
-    auto partitions = genPartitions(this->layout);
-    int pow_size = std::pow(2, this->layout.size());
+    int pow_size = std::pow(2, this->layout.size()); 
     Eigen::MatrixXd cumulant_kernel(pow_size, pow_size);
-    for(auto &partition:partitions){
-      Eigen::MatrixXd sub_kernel(1, 1);
-      for(auto &set:partition){
-        if(set.size() > this->order){
-          std::cout<<"leaving this partition, set "<<vecToString(set)<<" too big \n";
-          break;
+    if(cluster_map.size() == 0){
+      auto partitions = genPartitions(this->layout);
+      for(auto &partition:partitions){
+        Eigen::MatrixXd sub_kernel(1, 1);
+        for(auto &set:partition){
+          if(set.size() > this->order){
+            std::cout<<"leaving this partition, set "<<vecToString(set)<<" too big \n";
+            break;
+          }
+          else{
+            auto kernel = kernels[vecToString(set)];
+            sub_kernel = Eigen::KroneckerProduct(sub_kernel, kernel).eval();
+            std::cout<<"sub kernel cols: " <<sub_kernel.cols() <<" rows: " << sub_kernel.rows()<<"\n";
+          }
+        }
+        if(sub_kernel.size() == cumulant_kernel.size()){
+          cumulant_kernel += sub_kernel;
         }
         else{
-          auto kernel = kernels[vecToString(set)].inverse();
-          sub_kernel = Eigen::KroneckerProduct(sub_kernel, kernel).eval();
-          std::cout<<"sub kernel cols: " <<sub_kernel.cols() <<" rows: " << sub_kernel.rows()<<"\n";
-        }
+          std::cout<<"matrix sizes don't match\n";
+        } 
       }
-      if(sub_kernel.size() == cumulant_kernel.size()){
-        cumulant_kernel += sub_kernel;
+    }
+    else{
+      Eigen::MatrixXd sub_kernel(1, 1);
+      for(auto &x:cluster_map){
+        auto kernel = kernels[vecToString(x)];
+        sub_kernel = Eigen::KroneckerProduct(sub_kernel, kernel).eval();
       }
-      else{
-        std::cout<<"matrix sizes don't match\n";
-      }
-      
+      cumulant_kernel = sub_kernel;
+      std::cout<<"kernel size: \n";
+      std::cout<<cumulant_kernel.size();
     }
 
-    this->errorKernel = cumulant_kernel;
+    this->errorKernel = cumulant_kernel/(shot_size*i);
 
     return buffers;
   }

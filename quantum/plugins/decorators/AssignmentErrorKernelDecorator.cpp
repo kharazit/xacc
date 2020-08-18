@@ -97,7 +97,6 @@ void AssignmentErrorKernelDecorator::execute(
 
 
   //vector of buffers the last one corresponding to the passed in user program
-  std::cout<<"Did this shit execute?\n";
   std::cout<<"layout = ";
   printVec(this->layout);
   decoratedAccelerator->execute(buffer, circuits);
@@ -114,11 +113,18 @@ void AssignmentErrorKernelDecorator::execute(
     init_dist(idx) = buffers.back()->computeMeasurementProbability(x);
   }
   Eigen::VectorXd mit_dist;
+  std::cout<<"error kernel returned is: \n";
+  for(int i = 0; i < errorKernel.rows(); i++){
+    for(int j = 0; j < errorKernel.cols(); j++){
+      std::cout<<errorKernel(i,j)<<" ";
+    }
+    std::cout<<"\n";
+  }
   if(!cumulant){
     mit_dist = errorKernel.inverse()*init_dist;
   }
   else{
-    mit_dist = errorKernel*init_dist;
+    mit_dist = errorKernel.inverse()*init_dist;
   }
 
 
