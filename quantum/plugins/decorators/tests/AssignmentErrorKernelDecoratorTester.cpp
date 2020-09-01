@@ -19,12 +19,12 @@
 
 using namespace xacc;
 
-/*
+
 
 TEST(AssignmentErrorKernelDecoratorTest, checkBasic) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("shots", "2048")});
+    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_16_melbourne"));
     int num_qubits = 2;
 
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
@@ -43,7 +43,6 @@ Measure(q[1]);
     decorator->initialize({std::make_pair("gen-kernel", true)});
     decorator->setDecorated(accelerator);
     decorator->execute(decBuffer, bell);
-    decBuffer->print();
   } else {
     std::cout << "you do not have aer accelerator installed, please install "
                  "qiskit if you wish to run this test"
@@ -54,11 +53,7 @@ Measure(q[1]);
 TEST(AssignmentErrorKernelDecoratorTest, checkVectorize) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator(
-        "aer", {std::make_pair("shots", 2048),
-                std::make_pair("readout_error", true),
-                std::make_pair("gate_error", true),
-                std::make_pair("thermal_relaxation", true)});
+    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_16_melbourne"));
     int num_qbits = 2;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
@@ -88,7 +83,6 @@ Measure(q[1]);
     decorator->initialize({std::make_pair("gen-kernel", true)});
     decorator->setDecorated(accelerator);
     decorator->execute(buffer, circuits);
-    buffer->print();
   }
 }
 
@@ -97,7 +91,7 @@ Measure(q[1]);
 TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_16_melbourne"));
+    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("backend", "ibmq_16_melbourne"), std::make_pair("shots", 8192)});
     int num_qbits = 2;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
@@ -116,7 +110,6 @@ TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
     decorator->initialize({std::make_pair("gen-kernel", true), std::make_pair("layout", std::vector<std::size_t> {1,0})});
     decorator->setDecorated(accelerator);
     decorator->execute(buffer, circuit);
-    buffer->print();
   }
 }
 
@@ -124,8 +117,7 @@ TEST(AssignmentErrorKernelDecoratorTest, checkLayout) {
 TEST(AssignmentErrorKernelDecoratorTest, checkCumulant){
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer", 
-                {std::make_pair("shots", 2048)});
+    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("backend", "ibmq_16_melbourne"), std::make_pair("shots", 8192)});
     int num_qbits = 4;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
@@ -149,7 +141,7 @@ TEST(AssignmentErrorKernelDecoratorTest, checkCumulant){
     decorator->initialize({std::make_pair("gen-kernel", true), 
                             std::make_pair("layout", std::vector<std::size_t> {0, 2, 1, 3}),
                             std::make_pair("cumulant", true),
-                            std::make_pair("order", 2),
+                            std::make_pair("order", 3),
                             std::make_pair("spectators", false) });
     decorator->setDecorated(accelerator);
     decorator->execute(buffer, circuit);
@@ -160,7 +152,7 @@ TEST(AssignmentErrorKernelDecoratorTest, checkCumulant){
 TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_16_melbourne"));
+    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("backend", "ibmq_16_melbourne"), std::make_pair("shots", 8192)});
     int num_qbits = 4;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(
@@ -190,12 +182,10 @@ TEST(AssignmentErrorKernelDecoratorTest, checkClustered) {
   }
 }
 
-*/
-
 TEST(AssignmentErrorKernelDecoratorTest, checkSpectators) {
   xacc::set_verbose(true);
   if (xacc::hasAccelerator("aer")) {
-    auto accelerator = xacc::getAccelerator("aer", std::make_pair("backend", "ibmq_johannesburg"));
+    auto accelerator = xacc::getAccelerator("aer", {std::make_pair("backend", "ibmq_16_melbourne"), std::make_pair("shots", 8192)});
     int num_qbits = 4;
     auto compiler = xacc::getService<xacc::Compiler>("xasm");
     xacc::qasm(R"(

@@ -132,8 +132,10 @@ namespace quantum {
 
     void QppVisitor::visit(X& x)
     {
+        std::cout<<"we here in X\n";
         const auto qubitIdx = xaccIdxToQppIdx(x.bits()[0]);
         m_stateVec = qpp::apply(m_stateVec, qpp::Gates::get_instance().X, { qubitIdx });
+        std::cout<<"we chill\n";
     }
 
     void QppVisitor::visit(Y& y)

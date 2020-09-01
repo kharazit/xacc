@@ -110,8 +110,10 @@ applyCTRL(const Eigen::MatrixBase<Derived1>& state,
         throw exception::DimsInvalid("qpp::applyCTRL()");
 
     // check that target is valid w.r.t. dims
-    if (!internal::check_subsys_match_dims(target, dims))
+    if (!internal::check_subsys_match_dims(target, dims)){
         throw exception::SubsysMismatchDims("qpp::applyCTRL()");
+    }
+        
 
     // check that gate matches the dimensions of the target
     std::vector<idx> target_dims(target.size());
@@ -505,7 +507,24 @@ apply(const Eigen::MatrixBase<Derived1>& state,
 
     // check that target is valid w.r.t. dims
     if (!internal::check_subsys_match_dims(target, dims))
+    {
+        std::cout<<"this shit failed here\n";
+        std::cout<<"DIMS:\n";
+        for(auto &x:dims){
+            std::cout<<x<<" ";
+        }
+        std::cout<<std::endl;        
+        std::cout<<"target: \n";
+        for(auto &x:target){
+            std::cout<<x<<" ";
+        }
+
+        std::cout<<"sizes = ?\n";
+        std::cout<<target.size() << " "<< dims.size();
+
         throw exception::SubsysMismatchDims("qpp::apply()");
+    }
+        
 
     // check valid state and matching dimensions
     if (internal::check_cvector(rstate)) {

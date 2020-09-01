@@ -96,7 +96,6 @@ void AerAccelerator::initialize(const HeterogeneousMap &params) {
     noise_model["errors"] = elements;
     // noise_model["x90_gates"] = std::vecto
 
-    std::cout << "NoiseModelJson:\n" << noise_model.dump(4) << "\n";
   }
 }
 double AerAccelerator::calcExpectationValueZ(
@@ -134,6 +133,7 @@ void AerAccelerator::execute(
     j["config"]["shots"] = m_shots;
     j["config"]["noise_model"] = noise_model;
 
+
     auto results_json = nlohmann::json::parse(
         AER::controller_execute_json<AER::Simulator::QasmController>(j.dump()));
 
@@ -159,6 +159,7 @@ void AerAccelerator::execute(
   } else {
     // statevector
     // remove all measures, don't need them
+
     auto tmp = xacc::ir::asComposite(program->clone());
     tmp->clear();
     std::vector<std::size_t> measured_bits;

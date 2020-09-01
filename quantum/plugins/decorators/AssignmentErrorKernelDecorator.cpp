@@ -16,27 +16,13 @@
 #include "xacc.hpp"
 #include <fstream>
 #include <Eigen/Dense>
-
-
-/*
-const std::vector<std::vector<int>> mapData { { 1, 3}, {2, 4}, {5, 6} };
-  xacc::HeterogeneousMap m{ {"myMap", mapData} };
-  if (m.keyExists<std::vector<std::vector<int>>>("myMap")) {
-    std::cout << "Has map\n";
-    auto mapData = m.get<std::vector<std::vector<int>>>("myMap");
-    std::cout << "Data length = " << mapData.size() << "\n";
-  } 
-*/
-
 namespace xacc {
 namespace quantum {
 void AssignmentErrorKernelDecorator::initialize(
     const HeterogeneousMap &params) {
-
   if(params.keyExists<std::vector<std::vector<std::size_t>>>("cluster-map")){
     cluster_map = params.get<std::vector<std::vector<std::size_t>>>("cluster-map");
-    }
-
+  }
   if(params.keyExists<bool>("spectators")){
     spectators = params.get<bool>("spectators");
   }
@@ -45,9 +31,9 @@ void AssignmentErrorKernelDecorator::initialize(
     std::cout<<"cumulant order specified: "<<order<<std::endl;
   }
   if(params.keyExists<bool>("cumulant")){
-    std::cout<<"Generating Error kernel using cumulant method\n";
+    std::cout<<"Generating Error Kernel using cumulant method \n";
     cumulant = params.get<bool>("cumulant");
-    if(order == 0){
+    if(!params.keyExists<int>("order")){
       std::cout<<"order not specified, setting order = 2 \n";
       order = 2;
     }
@@ -61,11 +47,9 @@ void AssignmentErrorKernelDecorator::initialize(
   }
   if (params.keyExists<std::vector<std::size_t>>("layout")){
     layout = params.get<std::vector<std::size_t>>("layout");
-    std::cout<<"layout recieved"<<std::endl;
   }
   if (params.keyExists<std::vector<int>>("layout")){
     auto tmp = params.get<std::vector<int>>("layout");
-    std::cout<<"layout specified, num qubits: "<<tmp.size()<<std::endl;
     for (auto& a : tmp){
       layout.push_back(a);
     }
@@ -76,80 +60,83 @@ void AssignmentErrorKernelDecorator::execute(
     std::shared_ptr<AcceleratorBuffer> buffer,
     const std::shared_ptr<CompositeInstruction> function){
   int num_bits = buffer->size();
-  std::cout<<"num qubits allocated: "<<buffer->size() <<std::endl;
   int pow_size = std::pow(2, num_bits);
   if (!layout.empty()) {
-    std::cout<<"mapbits\n";
      function->mapBits(layout);
+  }
+  else{
+    for(int i = 0; i < buffer->size(); i++){
+      layout.push_back(i);
+    }
   }
 
   std::vector<std::shared_ptr<CompositeInstruction>> circuits;
   if(cumulant){
-    std::cout<<"if cumulant\n";
     circuits = cumulantCircuits();
     circuits.push_back(function);
   }
   else{
     circuits = kernelCircuits(buffer);
-    std::cout<<"num kernel circuits: "<<circuits.size()<<"\n";
     circuits.push_back(function);
   }
 
-
-  //vector of buffers the last one corresponding to the passed in user program
-  std::cout<<"layout = ";
-  printVec(this->layout);
   decoratedAccelerator->execute(buffer, circuits);
-  std::cout<<"yes\n";
   auto buffers = genKernel(buffer);
+  //buffers are just the non-kernel buffers
   int shots = 0;
   for(auto &x: buffers[0]->getMeasurementCounts()){
     shots += x.second;
   }
   Eigen::VectorXd init_dist(pow_size);
-  int i = 0;
-  for(auto &x:permutations){
+  double sum = 0.0;
+  std::cout<<"init dist:\n";
+  for(auto &x:genPermutations(num_bits)){
     int idx = std::stoi(x, 0, 2);
+    std::cout<<"bitstring: "<<x<<" ";
     init_dist(idx) = buffers.back()->computeMeasurementProbability(x);
+    std::cout<<init_dist(idx)<<"\n";
+    sum += init_dist(idx);
   }
+  std::cout<<"\n";
+
+  std::cout<<"sum of init_dist: \n";
+  std::cout<<sum<<"\n";
+
   Eigen::VectorXd mit_dist;
-  std::cout<<"error kernel returned is: \n";
-  for(int i = 0; i < errorKernel.rows(); i++){
-    for(int j = 0; j < errorKernel.cols(); j++){
-      std::cout<<errorKernel(i,j)<<" ";
-    }
-    std::cout<<"\n";
-  }
-  if(!cumulant){
-    mit_dist = errorKernel.inverse()*init_dist;
-  }
-  else{
-    mit_dist = errorKernel.inverse()*init_dist;
-  }
-
-
-  //finding shots that map below zero
-  int new_shots = shots;
-  for(int i =0; i < mit_dist.size(); i++){
-    if(mit_dist[i] < 0.0){
-      new_shots -= floor(shots*mit_dist[i] +0.5);
-      mit_dist[i] = 0;
-    }
-  }
-  //updating distribution with new shot size
+  mit_dist = errorKernel*init_dist;
+  std::cout<<"sum of mit_dist: \n";
+  sum = 0.0;
   for(int i = 0; i < mit_dist.size(); i++){
-    mit_dist[i] = shots/new_shots * mit_dist[i];
+    sum += mit_dist(i);
   }
+  std::cout<<sum<<"\n";
+  //finding shots that map below zero
+  double new_shots = (double) shots;
+  for(int i =0; i < mit_dist.size(); i++){
+    if(mit_dist(i) < 0.0){
+      new_shots += shots*floor(mit_dist(i) + 0.5);
+      mit_dist(i) = 0.0;
+    }
+  }
+
+  //updating distribution with new shot size
+  mit_dist.normalize();
 
   std::map<std::string, double> orig_counts;
+  this->permutations = genPermutations(num_bits);
   for(auto &x:permutations){
     orig_counts[x] = (double)buffers.back()->getMeasurementCounts()[x];
-    int count = floor(shots * mit_dist(i) + 0.5);
+    int idx = std::stoi(x, 0, 2);
+    int count = floor(new_shots * mit_dist(idx) + 0.5);
+    std::cout<<"appending: "<<x<<" with: "<<count<<"\n";
     buffers.back()->appendMeasurement(x, count);
-    i++;
   }
-  buffers.back()->addExtraInfo("unmitigated-counts", orig_counts);
-  }
+  buffer->addExtraInfo("unmitigated-counts", orig_counts);
+  std::cout<<"shot dropout is: "<<shots - new_shots<<"\n";
+  gen_kernel = false;
+  std::vector<double> vec(errorKernel.data(), errorKernel.data() + errorKernel.rows()*errorKernel.cols());
+  buffer->addExtraInfo("error-kernel", vec);
+  }//execute
 
 void AssignmentErrorKernelDecorator::execute(
     const std::shared_ptr<AcceleratorBuffer> buffer,
@@ -157,10 +144,14 @@ void AssignmentErrorKernelDecorator::execute(
   int num_bits = buffer->size();
   int pow_size = std::pow(2, num_bits);
   int num_circs = functions.size();
-  std::cout<<"num circs passed: " <<num_circs<<"\n";
   if(!layout.empty()){
     for(auto &program:functions){
       program->mapBits(layout);
+    }
+  }
+  else{
+    for(int i = 0; i < buffer->size(); i++){
+      layout.push_back(i);
     }
   }
   std::vector<std::shared_ptr<CompositeInstruction>> circuits;
@@ -181,79 +172,58 @@ void AssignmentErrorKernelDecorator::execute(
   // get the raw states
   decoratedAccelerator->execute(buffer, circuits);
   auto buffers = genKernel(buffer);
+  //buffers of programs passed to the decorator (no kernel circuits)
   int shots = 0;
   for(auto &x: buffers[0]->getMeasurementCounts()){
     shots += x.second;
   }
-  for(int i = circuits.size()-functions.size(); i < buffers.size(); i++){
-    if(pow_size < std::pow(2, buffers[i]->size())){
-      std::cout<<"qubits allocated less than parent buffer, tracing error kernel over unused indices";
-      auto bitmap = buffers[i]->getBitMap();
-      //get values from bitmap
-      //compare values from bitmap to values in layout
-      //generate index list and pass that to trace, mitigate this circuit
-      //with that specific kernel
-    }
-    Eigen::VectorXd(pow_size);
-    int j = 0;
-  }
   std::vector<Eigen::VectorXd> init_states;
-  // compute number of shots;
-
-  int i = 0;
+  this->permutations = genPermutations(num_bits);
   for (auto &b : buffers) {
     Eigen::VectorXd temp(pow_size);
-    int j = 0;
     for (auto &x : permutations) {
-      temp(j) =(double)b->computeMeasurementProbability(x);
-      j++;
+      int idx = std::stoi(x, 0, 2);
+      temp(idx) =(double)b->computeMeasurementProbability(x);
     }
-    // std::cout << "seg fault right here " << std::endl;
     init_states.push_back(temp);
   }
-//   std::cout << "unmitigated states: " << std::endl;
-  std::vector<Eigen::VectorXd> EM_states;
-  i = 0;
+  std::vector<Eigen::VectorXd> mit_dist;
   for (auto &x : init_states) {
-    std::cout <<"vector size: "<< x.size() << std::endl;
-    std::cout<<"matrix size "<<errorKernel.cols()<<std::endl;
-    EM_states.push_back(errorKernel * x);
-    i++;
+    mit_dist.push_back(errorKernel * x);
   }
-//   std::cout << "mitigated states: " << std::endl;
-//   for (auto &x : EM_states) {
-//     std::cout << x << std::endl << std::endl;
-//   }
-  for (int i = 0; i < EM_states.size(); i++) {
-    for (int j = 0; j < EM_states[i].size(); j++) {
-      if (EM_states[i](j) < 0.0) {
-        int count = floor(shots * EM_states[i](j) + 0.5);
-        // std::cout << "found negative value, clipping and renorming "
-        //           << std::endl;
-        // std::cout << "removed " << abs(count) << " shots from total shots"
-        //           << std::endl;
-        shots += count;
-        EM_states[i](j) = 0.0;
-      }
+  std::cout<<"distribution pre clipping:\n";
+  for(int i = 0; i < mit_dist.size(); i++){
+    std::cout<<"distribution: "<<i<<": ";
+    for(int j = 0; j < mit_dist[i].size(); j++){
+      std::cout<<mit_dist[i](j)<<" ";
     }
+    std::cout<<"\n";
   }
+  std::cout<<"\n";
 
-
+  //finding shots that map below zero
   std::vector<std::map<std::string, double>> origCounts(buffer->nChildren());
-  int total = 0;
-  i = 0;
-  for (auto &b : buffers) {
-    int j = 0;
-    for (auto &x : permutations) {
-      origCounts[i][x] = (double)b->getMeasurementCounts()[x];
-      int count = floor(shots * EM_states[i](j) + 0.5);
-      j++;
-      total += count;
-      b->appendMeasurement(x, count);
-      b->addExtraInfo("unmitigated-counts", origCounts[i]);
+  int b_idx = 0;
+  for(auto &b: buffers){
+    int new_shots = shots;
+    for(auto &x: permutations){
+      origCounts[b_idx][x] = (double)b->getMeasurementCounts()[x];
+      int idx = std::stoi(x, 0, 2);
+      if(mit_dist[b_idx](idx) < 0.0){
+        new_shots += floor(shots*mit_dist[b_idx](idx) + 0.5);
+        mit_dist[b_idx](idx) = 0;
+      }
+      int count = floor(new_shots*mit_dist[b_idx](idx) + 0.5);
+      std::cout<<"appending: "<<x<<" with: "<< count<<"\n";
+      b->appendMeasurement(x, mit_dist[b_idx](idx));
     }
-    i++;
+    b->addExtraInfo("unmitigated-counts", origCounts[b_idx]);
+    b_idx++;
   }
+
+  std::vector<double> vec(errorKernel.data(), errorKernel.data() + errorKernel.rows()*errorKernel.cols());
+  buffer->addExtraInfo("error-kernel", vec);
+  gen_kernel = false;
   return;
 } // execute (vectorized)
 
