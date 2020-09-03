@@ -158,7 +158,7 @@ void error(const std::string &msg, MessagePredicate predicate) {
 qbit qalloc(const int n) {
   qbit q(n);
   std::stringstream ss;
-  ss << q;
+  ss << "qreg_"<<q;
   q->setName(ss.str());
   allocated_buffers.insert({ss.str(), q});
   return q;
@@ -166,7 +166,7 @@ qbit qalloc(const int n) {
 qbit qalloc() {
   qbit q;
   std::stringstream ss;
-  ss << q;
+  ss << "qreg_"<<q;
   q->setName(ss.str());
   allocated_buffers.insert({ss.str(), q});
   return q;
@@ -187,6 +187,12 @@ void storeBuffer(const std::string name,
   if (allocated_buffers.count(name)) {
     error("Invalid buffer name to store: " + name);
   }
+  // if this buffer is in here already before we 
+  // set its new name, we should remove it from the allocation
+  if (allocated_buffers.count(buffer->name())) {
+      allocated_buffers.erase(buffer->name());
+  }
+  
   buffer->setName(name);
   allocated_buffers.insert({name, buffer});
 }
